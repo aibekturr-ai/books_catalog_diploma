@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum BookStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+enum ExternalProvider {
+  GOOGLE_BOOKS
+}
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  passwordHash      String
+  role              Role               @default(USER)
+  createdAt         DateTime           @default(now())
+  books             Book[]
+  favorites         Favorite[]
+  externalFavorites ExternalFavorite[]
+  reviews           Review[]
+}
+
+model Genre {
+  id         String     @id @default(cuid())
+  name       String
+  slug       String     @unique
+  subgenres  Subgenre[]
+  books      Book[]
+}
+
+model Subgenre {
+  id      String @id @default(cuid())
+  name    String
+  slug    String
+  genreId String
+  genre   Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+  books   Book[]
+
+  @@unique([genreId, slug])
+}
+
+model Book {
+  id              String              @id @default(cuid())
+  title           String
+  author          String
+  description     String              @db.Text
+  coverImage      String
+  status          BookStatus          @default(PENDING)
+  rejectionReason String?
+  createdAt       DateTime            @default(now())
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  genreId         String
+  genre           Genre               @relation(fields: [genreId], references: [id])
+  subgenreId      String?
+  subgenre        Subgenre?           @relation(fields: [subgenreId], references: [id])
+  externalSource  BookExternalSource?
+  favorites       Favorite[]
+  reviews         Review[]
+
+  @@index([title])
+  @@index([author])
+  @@index([createdAt])
+  @@index([status])
+  @@index([genreId])
+  @@index([subgenreId])
+}
+
+model BookExternalSource {
+  id         String           @id @default(cuid())
+  bookId     String           @unique
+  book       Book             @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  provider   ExternalProvider
+  externalId String
+  isbn10     String?
+  isbn13     String?
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+}
+
+model ExternalFavorite {
+  id          String           @id @default(cuid())
+  userId      String
+  provider    ExternalProvider @default(GOOGLE_BOOKS)
+  externalId  String
+  title       String
+  author      String
+  description String           @db.Text @default("")
+  coverImage  String
+  isbn10      String?
+  isbn13      String?
+  createdAt   DateTime         @default(now())
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider, externalId])
+  @@index([userId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([bookId])
+}
